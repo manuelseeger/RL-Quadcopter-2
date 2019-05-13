@@ -15,12 +15,10 @@ ex.observers.append(MongoObserver.create(db_name='sacred'))
 
 @ex.config
 def config():
-    gamma = 0.99
-    tau = 0.5
 
     # Noise process
-    exploration_mu = 0.1
-    exploration_theta = -0.15
+    exploration_mu = 0.
+    exploration_theta = 0.15
     exploration_sigma = 0.2
 
     # Replay memory
@@ -29,7 +27,7 @@ def config():
 
     # Algorithm parameters
     gamma = 0.99  # discount factor
-    tau = 0.1  # for soft update of target parameters
+    tau = 0.5  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
@@ -41,7 +39,7 @@ def config():
     file_output = 'data.txt'                         # file name for saved results
     init_pose = np.array([0., 0., 10., 0., 0., 0.])  # initial pose
 
-    target_pos = np.array([0., 0., 50.])
+    target_pos = np.array([0., 0., 20.])
 
     # experiment logging parameters
     window = 100
@@ -74,9 +72,6 @@ def train(_run, task, agent, num_episodes, window, write_train_log):
         while True:
             action = agent.act(state)
             next_state, reward, done = task.step(action)
-            if math.isnan(reward):
-                print("\rEpisode = {:4d}, Reward = {:4f}, A1 {:4f} A2 {:4f} A3 {:4f} A4 {:4f}".format(
-                    i_episode, total_reward, action[0], action[1], action[2], action[3], end=""))
             agent.step(action, reward, next_state, done)
             state = next_state
             total_reward += reward

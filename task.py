@@ -20,7 +20,7 @@ class Task():
         self.action_repeat = 3
 
         self.state_size = self.action_repeat * 6
-        self.action_low = 0
+        self.action_low = 10
         self.action_high = 900
         self.action_size = 4
 
@@ -32,7 +32,9 @@ class Task():
         else:
             self.init_edist = 0
 
-    def get_reward(self):
+        self.max_action_variance = np.var([self.action_low, self.action_low, self.action_high, self.action_high])
+
+    def get_reward(self, rotor_speeds):
         """Uses current pose of sim to return reward."""
         #reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
         #zdiff = self.target_pos[2] - self.sim.pose[2]
@@ -40,9 +42,13 @@ class Task():
 
         edist = np.linalg.norm(self.target_pos - self.sim.pose[0:3])
 
-        reward = 1 - (edist / self.init_edist) ** .3
+        reward = 1 - (edist / (self.init_edist * 2)) ** .3
 
-        if self.sim.done and self.sim.pose[2] > self.target_pos[2]:
+        #reward -= 1 - (np.var(rotor_speeds) / self.max_action_variance)
+
+        #reward = np.tanh()
+
+        if self.target_pos[2] < self.sim.pose[2]:
             reward += 10
 
         reward = reward / self.action_repeat
@@ -58,7 +64,7 @@ class Task():
         pose_all = []
         for _ in range(self.action_repeat):
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
-            reward += self.get_reward() 
+            reward += self.get_reward(rotor_speeds)
             pose_all.append(self.sim.pose)
             if done:
                 missing = self.action_repeat - len(pose_all)

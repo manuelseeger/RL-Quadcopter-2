@@ -28,7 +28,7 @@ class DDPG_Agent():
 
         # Noise process
         self.exploration_mu = 0.1
-        self.exploration_theta = -0.15
+        self.exploration_theta = 0.15
         self.exploration_sigma = 0.2
         self.noise = OUNoise(self.action_size, self.exploration_mu, self.exploration_theta, self.exploration_sigma)
 
@@ -78,7 +78,7 @@ class DDPG_Agent():
         state = np.reshape(state, [-1, self.state_size])
         action = self.actor_local.model.predict(state)[0]
         # adding clipping to actions to keep them in action space
-        return list(np.clip(action + self.noise.sample()), self.action_low, self.action_high)  # add some noise for exploration
+        return list(np.clip((action + self.noise.sample()), self.action_low, self.action_high))  # add some noise for exploration
 
     def learn(self, experiences):
         """Update policy and value parameters using given batch of experience tuples."""
@@ -176,8 +176,10 @@ class Actor:
         # Add hidden layers
         net = layers.Dense(units=32, activation='relu')(states)
         net = layers.BatchNormalization()(net)
+        net = layers.Dropout(0.1)(net)
         net = layers.Dense(units=64, activation='relu')(net)
         net = layers.BatchNormalization()(net)
+        net = layers.Dropout(0.1)(net)
         net = layers.Dense(units=32, activation='relu')(net)
 
         # Try different layer sizes, activations, add batch normalization, regularizers, etc.
