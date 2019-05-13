@@ -1,5 +1,6 @@
 import numpy as np
 from physics_sim import PhysicsSim
+import math
 
 class Task():
     """Task (environment) that defines the goal and provides feedback to the agent."""
@@ -24,11 +25,31 @@ class Task():
         self.action_size = 4
 
         # Goal
-        self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10.]) 
+        self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 50.])
+
+        if init_pose is not None:
+            self.init_edist = np.linalg.norm(self.target_pos - self.sim.init_pose[0:3])+10
+        else:
+            self.init_edist = 0
 
     def get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
+        #reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
+        #zdiff = self.target_pos[2] - self.sim.pose[2]
+        #diff = (self.sim.pose[:3] - self.target_pos).sum()
+
+        edist = np.linalg.norm(self.target_pos - self.sim.pose[0:3])
+
+        reward = 1 - (edist / self.init_edist) ** .3
+
+        if self.sim.done and self.sim.pose[2] > self.target_pos[2]:
+            reward += 10
+
+        reward = reward / self.action_repeat
+
+        if self.sim.done and self.sim.runtime > self.sim.time:
+            reward = -20
+
         return reward
 
     def step(self, rotor_speeds):
@@ -39,11 +60,25 @@ class Task():
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self.get_reward() 
             pose_all.append(self.sim.pose)
+            if done:
+                missing = self.action_repeat - len(pose_all)
+                if missing > 0:
+                    pose_all.extend([pose_all[-1]] * missing)
+                break
+
+
         next_state = np.concatenate(pose_all)
+
+        # stop once target heigh reached
+        if self.target_pos[2] < self.sim.pose[2]:
+            done = True
+
         return next_state, reward, done
 
-    def reset(self):
+    def reset(self, init_pose=None):
         """Reset the sim to start a new episode."""
+        if init_pose is not None:
+            self.sim.init_pose = init_pose
         self.sim.reset()
         state = np.concatenate([self.sim.pose] * self.action_repeat) 
         return state

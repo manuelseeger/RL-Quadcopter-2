@@ -1,11 +1,14 @@
+import csv
+import math
+import os
+import sys
+
+import numpy as np
 from sacred import Experiment
 from sacred.observers import MongoObserver
-import numpy as np
-from agents.agent import  DDPG_Agent
+
+from agents.agent import DDPG_Agent
 from task import Task
-import sys
-import os
-import csv
 
 ex = Experiment()
 ex.observers.append(MongoObserver.create(db_name='sacred'))
@@ -71,13 +74,17 @@ def train(_run, task, agent, num_episodes, window, write_train_log):
         while True:
             action = agent.act(state)
             next_state, reward, done = task.step(action)
+            if math.isnan(reward):
+                print("\rEpisode = {:4d}, Reward = {:4f}, A1 {:4f} A2 {:4f} A3 {:4f} A4 {:4f}".format(
+                    i_episode, total_reward, action[0], action[1], action[2], action[3], end=""))
             agent.step(action, reward, next_state, done)
             state = next_state
             total_reward += reward
             if done:
-                if total_reward == float('nan'):
-                    total_reward = 0.
-                print("\rEpisode = {:4d}, Reward = {:4f}".format(i_episode, total_reward), end="")
+                print("\rEpisode = {:4d}, Reward = {:4f}, A1 {:4f} A2 {:4f} A3 {:4f} A4 {:4f}".format(
+                        i_episode, total_reward, action[0], action[1], action[2], action[3], end=""))
+                assert math.isnan(reward) is not True
+
                 if write_train_log:
                     f.writelines(str(total_reward) + '\n')
                     f.flush()
@@ -123,7 +130,7 @@ def main(_run):
 
     train(_run, task, agent)
 
-    os.mkdir(os.path.join('runs', str(_run._id)))
+    #os.mkdir(os.path.join('runs', str(_run._id)))
     #agent.actor_target.model.save(os.path.join('runs', str(_run._id), 'actor.h5'))
     #agent.critic_target.model.save(os.path.join('runs', str(_run._id), 'critic.h5'))
 

@@ -1,6 +1,6 @@
 import numpy as np
 import csv
-
+import math
 
 def C(x):
     return np.cos(x)
