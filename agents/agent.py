@@ -35,12 +35,12 @@ class DDPG_Agent():
 
         # Replay memory
         self.buffer_size = 100000
-        self.batch_size = 64
+        self.batch_size = 128
         self.memory = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # Algorithm parameters
-        self.gamma = 0.9  # discount factor
-        self.tau = 0.1  # for soft update of target parameters
+        self.gamma = 0.99  # discount factor
+        self.tau = 0.001  # for soft update of target parameters
 
     def configure(self, gamma=0.9, tau=0.1, buffer_size=100000, batch_size=128, exploration_mu=0,
                   exploration_theta=0.15, exploration_sigma=0.2):
@@ -67,7 +67,7 @@ class DDPG_Agent():
         self.memory.add(self.last_state, action, reward, next_state, done)
 
         # Learn, if enough samples are available in memory
-        if len(self.memory) > self.batch_size:
+        if len(self.memory) > self.batch_size and done:
             experiences = self.memory.sample()
             self.learn(experiences)
 

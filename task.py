@@ -28,35 +28,26 @@ class Task():
         self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 50.])
 
         if init_pose is not None:
-            self.init_edist = np.linalg.norm(self.target_pos - self.sim.init_pose[0:3])+10
+            self.init_edist = np.linalg.norm(self.target_pos - self.sim.init_pose[0:3])
         else:
             self.init_edist = 0
 
-        self.max_action_variance = np.var([self.action_low, self.action_low, self.action_high, self.action_high])
+        self.success = False
+
+        self.distance_to_target = self.init_edist
+
+    def goal_reached(self):
+        return self.distance_to_target < 2
 
     def get_reward(self, rotor_speeds):
         """Uses current pose of sim to return reward."""
-        #reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
-        #zdiff = self.target_pos[2] - self.sim.pose[2]
-        #diff = (self.sim.pose[:3] - self.target_pos).sum()
 
-        edist = np.linalg.norm(self.target_pos - self.sim.pose[0:3])
+        self.distance_to_target = np.linalg.norm(self.target_pos - self.sim.pose[0:3])
 
-        reward = 1 - (edist / (self.init_edist * 2)) ** .3
+        reward = 1 - (self.distance_to_target / (self.init_edist * 2)) ** .3
 
-        #reward -= 1 - (np.var(rotor_speeds) / self.max_action_variance)
-
-        #x_angle = self.sim.pose[3]
-        #y_angle = self.sim.pose[4]
-
-        #reward -= 0.2 / (1 + np.exp((abs(self.sim.angular_v).sum()) ** 0.1))
-
-        #reward -= 1 - ()
-        #reward -= 1 - ()
-
-
-        if self.target_pos[2] < self.sim.pose[2]:
-            reward += 10
+        if self.goal_reached():
+            reward += 50
 
         reward = reward / self.action_repeat
 
@@ -79,12 +70,12 @@ class Task():
                     pose_all.extend([pose_all[-1]] * missing)
                 break
 
-
         next_state = np.concatenate(pose_all)
 
         # stop once target heigh reached
-        if self.target_pos[2] < self.sim.pose[2]:
+        if self.goal_reached():
             done = True
+            self.success = True
 
         return next_state, reward, done
 
@@ -93,5 +84,6 @@ class Task():
         if init_pose is not None:
             self.sim.init_pose = init_pose
         self.sim.reset()
-        state = np.concatenate([self.sim.pose] * self.action_repeat) 
+        state = np.concatenate([self.sim.pose] * self.action_repeat)
+        self.success = False
         return state

@@ -9,6 +9,7 @@ from sacred.observers import MongoObserver
 
 from agents.agent import DDPG_Agent
 from task import Task
+from collections import deque
 
 ex = Experiment()
 ex.observers.append(MongoObserver.create(db_name='sacred'))
@@ -17,7 +18,7 @@ ex.observers.append(MongoObserver.create(db_name='sacred'))
 def config():
 
     # Noise process
-    exploration_mu = 0.
+    exploration_mu = 1.
     exploration_theta = 0.15
     exploration_sigma = 0.2
 
@@ -26,12 +27,15 @@ def config():
     batch_size = 64
 
     # Algorithm parameters
-    gamma = 0.99  # discount factor
-    tau = 0.01  # for soft update of target parameters
+    gamma = 0.8   # discount factor
+    tau = 0.1  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
     runtime = 5.
+    success_mem_len = 10
+    minimum_successes = 9
+
 
     # Task parameters
     init_velocities = np.array([0., 0., 0.])         # initial velocities
@@ -39,29 +43,32 @@ def config():
     file_output = 'data.txt'                         # file name for saved results
     init_pose = np.array([0., 0., 10., 0., 0., 0.])  # initial pose
 
-    target_pos = np.array([0., 0., 30.])
+    target_pos = np.array([10., 10., 30.])
 
     # experiment logging parameters
-    window = 100
+    window = 50
     test_log_file_name = 'test_log.txt'
     write_train_log = False
 
 
+
 @ex.capture
-def init(target_pos, init_pose, init_angle_velocities, init_velocities,
+def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime,
             gamma=0.9, tau=0.1, buffer_size=100000, batch_size=128, exploration_mu=0,
             exploration_theta=0.15, exploration_sigma=0.2):
     task = Task(target_pos=target_pos, init_pose=init_pose,
-                init_angle_velocities=init_angle_velocities, init_velocities=init_velocities)
+                init_angle_velocities=init_angle_velocities, init_velocities=init_velocities,
+                runtime=runtime)
     agent = DDPG_Agent(task)
     agent.configure(gamma, tau, buffer_size, batch_size, exploration_mu, exploration_theta, exploration_sigma)
 
     return task, agent
 
 @ex.capture
-def train(_run, task, agent, num_episodes, window, write_train_log):
+def train(_run, task, agent, num_episodes, window, write_train_log, success_mem_len, minimum_successes):
 
     rewards = np.array([])
+    successes = deque([], maxlen=success_mem_len)
 
     if write_train_log:
         f = open('rewards_log.txt', 'w')
@@ -76,8 +83,9 @@ def train(_run, task, agent, num_episodes, window, write_train_log):
             state = next_state
             total_reward += reward
             if done:
-                print("\rEpisode = {:4d}, Reward = {:4f}, A1 {:4f} A2 {:4f} A3 {:4f} A4 {:4f}".format(
-                        i_episode, total_reward, action[0], action[1], action[2], action[3], end=""))
+                print("\rEpisode = {:4d}, Reward = {:8.4f}, {:7} ({:.2f}), Rotors: {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format(
+                        i_episode, total_reward, ('Success' if agent.task.success else 'Fail'),
+                        agent.task.distance_to_target, action[0], action[1], action[2], action[3], end=""))
                 assert math.isnan(reward) is not True
 
                 if write_train_log:
@@ -88,9 +96,16 @@ def train(_run, task, agent, num_episodes, window, write_train_log):
                 n = window if window < len(rewards) else len(rewards)
                 moving_average = np.sum(rewards[-n:])/n
                 _run.log_scalar('Reward', total_reward, i_episode)
+                _run.log_scalar('Distance', agent.task.distance_to_target)
                 _run.log_scalar('Past {:d} episode mean reward'.format(window), moving_average, i_episode)
                 total_reward = 0
+
+                successes.append(agent.task.success)
+
                 break
+
+        if sum(successes) >= minimum_successes:
+            break
         sys.stdout.flush()
 
 @ex.capture
@@ -127,8 +142,6 @@ def test(_run, agent, task, test_log_file_name, init_pose):
             _run.log_scalar('X-v', task.sim.v[0])
             _run.log_scalar('Y-v', task.sim.v[1])
             _run.log_scalar('Z-v', task.sim.v[2])
-
-
 
             for ii in range(len(labels)):
                 results[labels[ii]].append(to_write[ii])
