@@ -46,7 +46,14 @@ class Task():
 
         #reward -= 1 - (np.var(rotor_speeds) / self.max_action_variance)
 
-        #reward = np.tanh()
+        #x_angle = self.sim.pose[3]
+        #y_angle = self.sim.pose[4]
+
+        reward -= 0.2 / (1 + np.exp(( abs(self.sim.angular_v).sum() ) ** 0.1))
+
+        #reward -= 1 - ()
+        #reward -= 1 - ()
+
 
         if self.target_pos[2] < self.sim.pose[2]:
             reward += 10

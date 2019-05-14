@@ -27,7 +27,7 @@ def config():
 
     # Algorithm parameters
     gamma = 0.99  # discount factor
-    tau = 0.5  # for soft update of target parameters
+    tau = 0.01  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
@@ -39,7 +39,7 @@ def config():
     file_output = 'data.txt'                         # file name for saved results
     init_pose = np.array([0., 0., 10., 0., 0., 0.])  # initial pose
 
-    target_pos = np.array([0., 0., 20.])
+    target_pos = np.array([0., 0., 30.])
 
     # experiment logging parameters
     window = 100
@@ -111,9 +111,25 @@ def test(_run, agent, task, test_log_file_name, init_pose):
             rotor_speeds = agent.act(state)
             state, _, done = task.step(rotor_speeds)
             to_write = [task.sim.time] + list(task.sim.pose) + list(task.sim.v) + list(task.sim.angular_v) + list(rotor_speeds)
-            _run.log_scalar('Z', task.sim.pose[2])
             _run.log_scalar('X', task.sim.pose[0])
             _run.log_scalar('Y', task.sim.pose[1])
+            _run.log_scalar('Z', task.sim.pose[2])
+
+            _run.log_scalar('phi', task.sim.pose[3])
+            _run.log_scalar('theta', task.sim.pose[4])
+            _run.log_scalar('psi', task.sim.pose[5])
+
+            _run.log_scalar('A1', rotor_speeds[0])
+            _run.log_scalar('A2', rotor_speeds[1])
+            _run.log_scalar('A3', rotor_speeds[2])
+            _run.log_scalar('A4', rotor_speeds[3])
+
+            _run.log_scalar('X-v', task.sim.v[0])
+            _run.log_scalar('Y-v', task.sim.v[1])
+            _run.log_scalar('Z-v', task.sim.v[2])
+
+
+
             for ii in range(len(labels)):
                 results[labels[ii]].append(to_write[ii])
             writer.writerow(to_write)
