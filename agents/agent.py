@@ -3,6 +3,7 @@ import copy
 import random
 from keras import layers, models, optimizers
 from keras import backend as K
+from keras import regularizers
 from collections import namedtuple, deque
 
 class DDPG_Agent():
@@ -174,16 +175,16 @@ class Actor:
         states = layers.Input(shape=(self.state_size,), name='states')
 
         # Add hidden layers
-        net = layers.Dense(units=64, activation='relu')(states)
+        net = layers.Dense(units=32, activation='relu', activity_regularizer=regularizers.l2(0.01))(states)
         net = layers.BatchNormalization()(net)
         net = layers.Dropout(0.1)(net)
-        net = layers.Dense(units=128, activation='relu')(net)
+        net = layers.Dense(units=64, activation='relu', activity_regularizer=regularizers.l2(0.01))(net)
         net = layers.BatchNormalization()(net)
         net = layers.Dropout(0.1)(net)
-        net = layers.Dense(units=64, activation='relu')(net)
+        net = layers.Dense(units=32, activation='relu', activity_regularizer=regularizers.l2(0.01))(net)
+        net = layers.BatchNormalization()(net)
 
         # Try different layer sizes, activations, add batch normalization, regularizers, etc.
-        # - added batchnorm to try to prevent actions outside of range
 
         # Add final output layer with sigmoid activation
         raw_actions = layers.Dense(units=self.action_size, activation='sigmoid',
