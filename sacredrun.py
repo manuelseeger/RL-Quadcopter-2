@@ -18,13 +18,13 @@ ex.observers.append(MongoObserver.create(db_name='sacred'))
 def config():
 
     # Noise process
-    exploration_mu = 1.
+    exploration_mu = 0.
     exploration_theta = 0.15
     exploration_sigma = 0.2
 
     # Replay memory
     buffer_size = 100000
-    batch_size = 64
+    batch_size = 128
 
     # Algorithm parameters
     gamma = 0.8   # discount factor
@@ -36,14 +36,15 @@ def config():
     success_mem_len = 10
     minimum_successes = 9
 
-
     # Task parameters
     init_velocities = np.array([0., 0., 0.])         # initial velocities
     init_angle_velocities = np.array([0., 0., 0.])   # initial angle velocities
     file_output = 'data.txt'                         # file name for saved results
-    init_pose = np.array([0., 0., 10., 0., 0., 0.])  # initial pose
+    init_pose = np.array([0., 0., 30., 0., 0., 0.])  # initial pose
+    action_low = 10
+    action_high = 900
 
-    target_pos = np.array([10., 10., 30.])
+    target_pos = np.array([10., 10., 50.])
 
     # experiment logging parameters
     window = 50
@@ -51,14 +52,14 @@ def config():
     write_train_log = False
 
 
-
 @ex.capture
-def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime,
+def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime, action_low, action_high,
             gamma=0.9, tau=0.1, buffer_size=100000, batch_size=128, exploration_mu=0,
             exploration_theta=0.15, exploration_sigma=0.2):
+
     task = Task(target_pos=target_pos, init_pose=init_pose,
                 init_angle_velocities=init_angle_velocities, init_velocities=init_velocities,
-                runtime=runtime)
+                runtime=runtime, action_low=action_low, action_high=action_high)
     agent = DDPG_Agent(task)
     agent.configure(gamma, tau, buffer_size, batch_size, exploration_mu, exploration_theta, exploration_sigma)
 

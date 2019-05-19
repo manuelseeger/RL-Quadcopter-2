@@ -35,7 +35,7 @@ class DDPG_Agent():
 
         # Replay memory
         self.buffer_size = 100000
-        self.batch_size = 128
+        self.batch_size = 64
         self.memory = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # Algorithm parameters
@@ -67,7 +67,7 @@ class DDPG_Agent():
         self.memory.add(self.last_state, action, reward, next_state, done)
 
         # Learn, if enough samples are available in memory
-        if len(self.memory) > self.batch_size and done:
+        if len(self.memory) > self.batch_size:
             experiences = self.memory.sample()
             self.learn(experiences)
 

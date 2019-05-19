@@ -5,7 +5,7 @@ import math
 class Task():
     """Task (environment) that defines the goal and provides feedback to the agent."""
     def __init__(self, init_pose=None, init_velocities=None, 
-        init_angle_velocities=None, runtime=5., target_pos=None):
+        init_angle_velocities=None, runtime=5., target_pos=None, action_low=10, action_high=900):
         """Initialize a Task object.
         Params
         ======
@@ -20,8 +20,8 @@ class Task():
         self.action_repeat = 3
 
         self.state_size = self.action_repeat * 6
-        self.action_low = 10
-        self.action_high = 900
+        self.action_low = action_low
+        self.action_high = action_high
         self.action_size = 4
 
         # Goal
