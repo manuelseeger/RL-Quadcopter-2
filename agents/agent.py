@@ -6,6 +6,10 @@ from keras import backend as K
 from keras import regularizers
 from collections import namedtuple, deque
 
+
+from keras import layers, models, optimizers
+from keras import backend as K
+
 class DDPG_Agent():
     """Reinforcement Learning agent that learns using DDPG."""
     def __init__(self, task):
@@ -28,7 +32,7 @@ class DDPG_Agent():
         self.actor_target.model.set_weights(self.actor_local.model.get_weights())
 
         # Noise process
-        self.exploration_mu = 0.1
+        self.exploration_mu = 0
         self.exploration_theta = 0.15
         self.exploration_sigma = 0.2
         self.noise = OUNoise(self.action_size, self.exploration_mu, self.exploration_theta, self.exploration_sigma)
@@ -40,7 +44,7 @@ class DDPG_Agent():
 
         # Algorithm parameters
         self.gamma = 0.99  # discount factor
-        self.tau = 0.001  # for soft update of target parameters
+        self.tau = 0.01  # for soft update of target parameters
 
     def configure(self, gamma=0.9, tau=0.1, buffer_size=100000, batch_size=128, exploration_mu=0,
                   exploration_theta=0.15, exploration_sigma=0.2):
@@ -56,9 +60,9 @@ class DDPG_Agent():
         self.gamma = gamma
         self.tau = tau
 
-    def reset_episode(self, init_pose=None):
+    def reset_episode(self):
         self.noise.reset()
-        state = self.task.reset(init_pose)
+        state = self.task.reset()
         self.last_state = state
         return state
 
@@ -78,8 +82,7 @@ class DDPG_Agent():
         """Returns actions for given state(s) as per current policy."""
         state = np.reshape(state, [-1, self.state_size])
         action = self.actor_local.model.predict(state)[0]
-        # adding clipping to actions to keep them in action space
-        return list(np.clip((action + self.noise.sample()), self.action_low, self.action_high))  # add some noise for exploration
+        return np.clip(action + self.noise.sample(), self.action_low, self.action_high)  # add some noise for exploration
 
     def learn(self, experiences):
         """Update policy and value parameters using given batch of experience tuples."""
@@ -118,33 +121,67 @@ class DDPG_Agent():
         target_model.set_weights(new_weights)
 
 
-class ReplayBuffer:
-    """Fixed-size buffer to store experience tuples."""
+class Critic:
+    """Critic (Value) Model."""
 
-    def __init__(self, buffer_size, batch_size):
-        """Initialize a ReplayBuffer object.
+    def __init__(self, state_size, action_size):
+        """Initialize parameters and build model.
+
         Params
         ======
-            buffer_size: maximum size of buffer
-            batch_size: size of each training batch
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
         """
-        self.memory = deque(maxlen=buffer_size)  # internal memory (deque)
-        self.batch_size = batch_size
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
+        self.state_size = state_size
+        self.action_size = action_size
 
-    def add(self, state, action, reward, next_state, done):
-        """Add a new experience to memory."""
-        e = self.experience(state, action, reward, next_state, done)
-        self.memory.append(e)
+        # Initialize any other variables here
 
-    def sample(self, batch_size=64):
-        """Randomly sample a batch of experiences from memory."""
-        return random.sample(self.memory, k=self.batch_size)
+        self.build_model()
 
-    def __len__(self):
-        """Return the current size of internal memory."""
-        return len(self.memory)
+    def build_model(self):
+        """Build a critic (value) network that maps (state, action) pairs -> Q-values."""
+        # Define input layers
+        states = layers.Input(shape=(self.state_size,), name='states')
+        actions = layers.Input(shape=(self.action_size,), name='actions')
 
+        # Add hidden layer(s) for state pathway
+        net_states = layers.Dense(units=320, activation='relu')(states)
+        net_states = layers.BatchNormalization()(net_states)
+        net_states = layers.Dense(units=640, activation='relu')(net_states)
+        net_states = layers.BatchNormalization()(net_states)
+
+        # Add hidden layer(s) for action pathway
+        net_actions = layers.Dense(units=320, activation='relu')(actions)
+        net_actions = layers.BatchNormalization()(net_actions)
+        net_actions = layers.Dense(units=640, activation='relu')(net_actions)
+        net_actions = layers.BatchNormalization()(net_actions)
+
+        # Try different layer sizes, activations, add batch normalization, regularizers, etc.
+
+        # Combine state and action pathways
+        net = layers.Add()([net_states, net_actions])
+        net = layers.Activation('relu')(net)
+
+        # Add more layers to the combined network if needed
+
+        # Add final output layer to prduce action values (Q values)
+        Q_values = layers.Dense(units=1, name='q_values')(net)
+
+        # Create Keras model
+        self.model = models.Model(inputs=[states, actions], outputs=Q_values)
+
+        # Define optimizer and compile model for training with built-in loss function
+        optimizer = optimizers.Adam()
+        self.model.compile(optimizer=optimizer, loss='mse')
+
+        # Compute action gradients (derivative of Q values w.r.t. to actions)
+        action_gradients = K.gradients(Q_values, actions)
+
+        # Define an additional function to fetch action gradients (to be used by actor model)
+        self.get_action_gradients = K.function(
+            inputs=[*self.model.input, K.learning_phase()],
+            outputs=action_gradients)
 
 class Actor:
     """Actor (Policy) Model."""
@@ -175,20 +212,24 @@ class Actor:
         states = layers.Input(shape=(self.state_size,), name='states')
 
         # Add hidden layers
-        net = layers.Dense(units=32, activation='relu', activity_regularizer=regularizers.l2(0.01))(states)
+        #net = layers.Dense(units=32, activation='relu')(states)
+        #net = layers.Dense(units=64, activation='relu')(net)
+        #net = layers.Dense(units=32, activation='relu')(net)
+        net = layers.Dense(units=320,kernel_regularizer=layers.regularizers.l2(1e-6))(states)
         net = layers.BatchNormalization()(net)
-        net = layers.Dropout(0.1)(net)
-        net = layers.Dense(units=64, activation='relu', activity_regularizer=regularizers.l2(0.01))(net)
+        net = layers.Activation("relu")(net)
+        net = layers.Dense(units=640,kernel_regularizer=layers.regularizers.l2(1e-6))(net)
         net = layers.BatchNormalization()(net)
-        net = layers.Dropout(0.1)(net)
-        net = layers.Dense(units=32, activation='relu', activity_regularizer=regularizers.l2(0.01))(net)
+        net = layers.Activation("relu")(net)
+        net = layers.Dense(units=320,kernel_regularizer=layers.regularizers.l2(1e-6))(net)
         net = layers.BatchNormalization()(net)
+        net = layers.Activation("relu")(net)
 
         # Try different layer sizes, activations, add batch normalization, regularizers, etc.
 
         # Add final output layer with sigmoid activation
         raw_actions = layers.Dense(units=self.action_size, activation='sigmoid',
-            name='raw_actions')(net)
+            name='raw_actions', kernel_initializer=layers.initializers.RandomUniform(minval=-0.003, maxval=0.003))(net)
 
         # Scale [0, 1] output for each action dimension to proper range
         actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
@@ -211,70 +252,32 @@ class Actor:
             outputs=[],
             updates=updates_op)
 
-class Critic:
-    """Critic (Value) Model."""
+class ReplayBuffer:
+    """Fixed-size buffer to store experience tuples."""
 
-    def __init__(self, state_size, action_size):
-        """Initialize parameters and build model.
-
+    def __init__(self, buffer_size, batch_size):
+        """Initialize a ReplayBuffer object.
         Params
         ======
-            state_size (int): Dimension of each state
-            action_size (int): Dimension of each action
+            buffer_size: maximum size of buffer
+            batch_size: size of each training batch
         """
-        self.state_size = state_size
-        self.action_size = action_size
+        self.memory = deque(maxlen=buffer_size)  # internal memory (deque)
+        self.batch_size = batch_size
+        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
 
-        # Initialize any other variables here
+    def add(self, state, action, reward, next_state, done):
+        """Add a new experience to memory."""
+        e = self.experience(state, action, reward, next_state, done)
+        self.memory.append(e)
 
-        self.build_model()
+    def sample(self, batch_size=64):
+        """Randomly sample a batch of experiences from memory."""
+        return random.sample(self.memory, k=self.batch_size)
 
-    def build_model(self):
-        """Build a critic (value) network that maps (state, action) pairs -> Q-values."""
-        # Define input layers
-        states = layers.Input(shape=(self.state_size,), name='states')
-        actions = layers.Input(shape=(self.action_size,), name='actions')
-
-        # Add hidden layer(s) for state pathway
-        net_states = layers.Dense(units=32, activation='relu')(states)
-        net_states = layers.Dense(units=64, activation='relu')(net_states)
-        net_states = layers.BatchNormalization()(net_states)
-        net_states = layers.Dense(units=64, activation='relu')(net_states)
-        net_states = layers.Dropout(rate=0.1)(net_states)
-
-        # Add hidden layer(s) for action pathway
-        net_actions = layers.Dense(units=32, activation='relu')(actions)
-        net_actions = layers.Dense(units=64, activation='relu')(net_actions)
-        net_actions = layers.BatchNormalization()(net_actions)
-        net_actions = layers.Dense(units=64, activation='relu')(net_actions)
-        net_actions = layers.Dropout(rate=0.1)(net_actions)
-
-        # Try different layer sizes, activations, add batch normalization, regularizers, etc.
-
-        # Combine state and action pathways
-        net = layers.Add()([net_states, net_actions])
-        net = layers.Activation('relu')(net)
-
-        # Add more layers to the combined network if needed
-
-        # Add final output layer to produce action values (Q values)
-        Q_values = layers.Dense(units=1, name='q_values')(net)
-
-        # Create Keras model
-        self.model = models.Model(inputs=[states, actions], outputs=Q_values)
-
-        # Define optimizer and compile model for training with built-in loss function
-        optimizer = optimizers.Adam()
-        self.model.compile(optimizer=optimizer, loss='mse')
-
-        # Compute action gradients (derivative of Q values w.r.t. to actions)
-        action_gradients = K.gradients(Q_values, actions)
-
-        # Define an additional function to fetch action gradients (to be used by actor model)
-        self.get_action_gradients = K.function(
-            inputs=[*self.model.input, K.learning_phase()],
-            outputs=action_gradients)
-
+    def __len__(self):
+        """Return the current size of internal memory."""
+        return len(self.memory)
 
 class OUNoise:
     """Ornstein-Uhlenbeck process."""

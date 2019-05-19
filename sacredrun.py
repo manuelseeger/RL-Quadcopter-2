@@ -8,6 +8,7 @@ from sacred import Experiment
 from sacred.observers import MongoObserver
 
 from agents.agent import DDPG_Agent
+from agents.policy_search import PolicySearch_Agent
 from task import Task
 from collections import deque
 
@@ -27,8 +28,8 @@ def config():
     batch_size = 128
 
     # Algorithm parameters
-    gamma = 0.8   # discount factor
-    tau = 0.1  # for soft update of target parameters
+    gamma = 0.9   # discount factor
+    tau = 0.01  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
@@ -40,28 +41,42 @@ def config():
     init_velocities = np.array([0., 0., 0.])         # initial velocities
     init_angle_velocities = np.array([0., 0., 0.])   # initial angle velocities
     file_output = 'data.txt'                         # file name for saved results
-    init_pose = np.array([0., 0., 30., 0., 0., 0.])  # initial pose
+    init_pose = np.array([0., 0., 10., 0., 0., 0.])  # initial pose
     action_low = 10
     action_high = 900
-
-    target_pos = np.array([10., 10., 50.])
+    action_size = 4
+    action_repeat = 3
+    target_pos = np.array([0., 0., 50.])
 
     # experiment logging parameters
     window = 50
     test_log_file_name = 'test_log.txt'
     write_train_log = False
 
+    # which agent to run
+    agent_type = 'DDPG'
+
 
 @ex.capture
-def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime, action_low, action_high,
+def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime, action_low, action_high, agent_type,
+            action_repeat, action_size,
             gamma=0.9, tau=0.1, buffer_size=100000, batch_size=128, exploration_mu=0,
             exploration_theta=0.15, exploration_sigma=0.2):
 
     task = Task(target_pos=target_pos, init_pose=init_pose,
                 init_angle_velocities=init_angle_velocities, init_velocities=init_velocities,
-                runtime=runtime, action_low=action_low, action_high=action_high)
-    agent = DDPG_Agent(task)
-    agent.configure(gamma, tau, buffer_size, batch_size, exploration_mu, exploration_theta, exploration_sigma)
+                runtime=runtime)
+
+    task.configure(action_repeat=action_repeat, action_low=action_low, action_high=action_high, action_size=action_size,
+                   target_pos=target_pos, init_velocities=init_velocities, init_angle_velocities=init_angle_velocities,
+                   init_pose=init_pose)
+
+    if agent_type == 'DDPG':
+        agent = DDPG_Agent(task)
+        agent.configure(gamma, tau, buffer_size, batch_size, exploration_mu, exploration_theta, exploration_sigma)
+    if agent_type == 'Policy_Search':
+        agent = PolicySearch_Agent(task)
+
 
     return task, agent
 
@@ -121,7 +136,7 @@ def test(_run, agent, task, test_log_file_name, init_pose):
         writer = csv.writer(csvfile)
         writer.writerow(labels)
 
-        state = agent.reset_episode(init_pose)
+        state = agent.reset_episode()
 
         while True:
             rotor_speeds = agent.act(state)
