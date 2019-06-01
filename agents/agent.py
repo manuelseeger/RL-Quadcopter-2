@@ -7,7 +7,7 @@ from keras import regularizers
 from collections import namedtuple, deque
 
 
-from keras import layers, models, optimizers
+from keras import layers, models, optimizers, initializers
 from keras import backend as K
 
 class DDPG_Agent():
@@ -145,6 +145,9 @@ class Critic:
         states = layers.Input(shape=(self.state_size,), name='states')
         actions = layers.Input(shape=(self.action_size,), name='actions')
 
+        kernel_initializer = initializers.VarianceScaling(scale=1.0, mode='fan_in', distribution='uniform',
+                                                                seed=None)
+
         # Add hidden layer(s) for state pathway
         net_states = layers.Dense(units=320, activation='relu')(states)
         net_states = layers.BatchNormalization()(net_states)
@@ -152,27 +155,27 @@ class Critic:
         net_states = layers.BatchNormalization()(net_states)
 
         # Add hidden layer(s) for action pathway
-        net_actions = layers.Dense(units=320, activation='relu')(actions)
-        net_actions = layers.BatchNormalization()(net_actions)
-        net_actions = layers.Dense(units=640, activation='relu')(net_actions)
+        net_actions = layers.Dense(units=640, activation='relu')(actions)
         net_actions = layers.BatchNormalization()(net_actions)
 
         # Try different layer sizes, activations, add batch normalization, regularizers, etc.
 
         # Combine state and action pathways
         net = layers.Add()([net_states, net_actions])
-        net = layers.Activation('relu')(net)
+
+        net = layers.Dense(units=300, activation='relu', kernel_initializer=kernel_initializer)(net)
 
         # Add more layers to the combined network if needed
+        final_layer_initializer = initializers.RandomUniform(minval=-0.003, maxval=0.003, seed=None)
 
         # Add final output layer to prduce action values (Q values)
-        Q_values = layers.Dense(units=1, name='q_values')(net)
+        Q_values = layers.Dense(units=1, name='q_values', kernel_initializer=final_layer_initializer)(net)
 
         # Create Keras model
         self.model = models.Model(inputs=[states, actions], outputs=Q_values)
 
         # Define optimizer and compile model for training with built-in loss function
-        optimizer = optimizers.Adam()
+        optimizer = optimizers.Adam(lr=0.001)
         self.model.compile(optimizer=optimizer, loss='mse')
 
         # Compute action gradients (derivative of Q values w.r.t. to actions)
@@ -228,12 +231,16 @@ class Actor:
         # Try different layer sizes, activations, add batch normalization, regularizers, etc.
 
         # Add final output layer with sigmoid activation
-        raw_actions = layers.Dense(units=self.action_size, activation='sigmoid',
+        raw_actions = layers.Dense(units=self.action_size, activation='tanh',
             name='raw_actions', kernel_initializer=layers.initializers.RandomUniform(minval=-0.003, maxval=0.003))(net)
 
-        # Scale [0, 1] output for each action dimension to proper range
-        actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
+        middle_value_of_action_range = self.action_low + self.action_range/2
+        actions = layers.Lambda(lambda x: (x * self.action_range) + middle_value_of_action_range,
             name='actions')(raw_actions)
+
+        # Scale [0, 1] output for each action dimension to proper range
+        #actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
+        #    name='actions')(raw_actions)
 
         # Create Keras model
         self.model = models.Model(inputs=states, outputs=actions)
@@ -245,7 +252,7 @@ class Actor:
         # Incorporate any additional losses here (e.g. from regularizers)
 
         # Define optimizer and training function
-        optimizer = optimizers.Adam()
+        optimizer = optimizers.Adam(lr=0.0001)
         updates_op = optimizer.get_updates(params=self.model.trainable_weights, loss=loss)
         self.train_fn = K.function(
             inputs=[self.model.input, action_gradients, K.learning_phase()],

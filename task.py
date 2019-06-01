@@ -30,7 +30,7 @@ class Task():
         # Goal
         self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10.])
         self.distance_to_target = 0.
-        self.init_distance = np.linalg.norm(self.target_pos - self.sim.init_pose[0:3])
+        self.init_distance = np.linalg.norm(self.target_pos - self.sim.init_pose[:3])
 
     def configure(self, action_repeat, action_low, action_high, action_size, target_pos,
                   init_velocities, init_angle_velocities, init_pose):
@@ -42,9 +42,12 @@ class Task():
 
     def get_reward(self, done):
         """Uses current pose of sim to return reward."""
-        self.distance_to_target = np.linalg.norm(self.target_pos - self.sim.pose[0:3])
+        self.distance_to_target = np.linalg.norm(self.target_pos - self.sim.pose[:3])
 
-        reward = 1 - (self.distance_to_target / (self.init_distance * 2)) ** .3
+        reward = 1 - (self.distance_to_target / (self.init_distance * 2)) ** 3
+
+        #reward = 1-np.tanh(self.target_pos[2] - self.sim.pose[2])
+        #reward = np.tanh(1 - 0.003 * (abs(self.sim.pose[2] - self.target_pos[2]))).sum()
 
         reward = reward / self.action_repeat
 

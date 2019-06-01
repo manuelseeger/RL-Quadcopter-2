@@ -29,7 +29,7 @@ def config():
 
     # Algorithm parameters
     gamma = 0.9   # discount factor
-    tau = 0.01  # for soft update of target parameters
+    tau = 0.4  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
@@ -46,7 +46,7 @@ def config():
     action_high = 900
     action_size = 4
     action_repeat = 3
-    target_pos = np.array([0., 0., 50.])
+    target_pos = np.array([0., 0., 30.])
 
     # experiment logging parameters
     window = 50
