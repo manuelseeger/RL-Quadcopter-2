@@ -2,10 +2,8 @@ import sys
 from agents.agent import DDPG_Agent
 import csv
 import numpy as np
-from task_playground import Task
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-
+from tasks import TakeOff_Task
 
 
 # Modify the values below to give the quadcopter a different starting position.
@@ -18,7 +16,7 @@ init_pose = np.array([0., 0., 10., 0., 0., 0.])  # initial pose
 
 num_episodes = 1000
 target_pos = np.array([0., 0., 50.])
-task = Task(target_pos=target_pos, init_pose=init_pose)
+task = TakeOff_Task(target_pos=target_pos, init_pose=init_pose)
 agent = DDPG_Agent(task)
 
 rewards = []
@@ -33,9 +31,9 @@ for i_episode in range(1, num_episodes+1):
         agent.step(action, reward, next_state, done)
         state = next_state
         if done:
-#            print("\rEpisode = {:4d}, score = {:7.3f} (best = {:7.3f}), noise_scale = {}".format())
-#                 i_episode, agent.score, agent.best_score, agent.noise_scale), end="")  # [debug]
-            print("\rEpisode = {:4d}, Reward = {:4f}".format(i_episode, reward), end="")
+            print("\rEpisode = {:4d}, Reward = {:8.4f}, {:7} ({:.2f}), Rotors: {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format(
+                  i_episode, reward, ('Success' if False else 'Fail'),
+                  0, action[0], action[1], action[2], action[3], end=""))
 
             rewards.append(reward)
             f.writelines(str(reward) + '\n')

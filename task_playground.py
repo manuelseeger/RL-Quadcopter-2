@@ -1,6 +1,5 @@
 import numpy as np
 from physics_sim import PhysicsSim
-import math
 
 
 class Task():

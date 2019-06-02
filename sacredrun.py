@@ -7,11 +7,11 @@ import numpy as np
 from sacred import Experiment
 from sacred.observers import MongoObserver
 
-from agents.agent_playground import DDPG_Agent_Playground
+from agents.agent import DDPG_Agent
 from agents.policy_search import PolicySearch_Agent
 from agents.random_binary_agent import Random_Binary_Agent
-from task_playground import Task
 from collections import deque
+from tasks import TakeOff_Task
 
 ex = Experiment()
 ex.observers.append(MongoObserver.create(db_name='sacred'))
@@ -26,11 +26,11 @@ def config():
 
     # Replay memory
     buffer_size = 100000
-    batch_size = 256
+    batch_size = 64
 
     # Algorithm parameters
     gamma = 0.9   # discount factor
-    tau = 0.01  # for soft update of target parameters
+    tau = 0.001  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
@@ -50,31 +50,33 @@ def config():
     target_pos = np.array([0., 0., 30.])
 
     # experiment logging parameters
-    window = 50
+    window = 10
     test_log_file_name = 'test_log.txt'
     write_train_log = False
 
     # which agent to run
-    #agent_type = 'DDPG'
-    agent_type = 'Random_Binary'
+    agents = ['DDPG', 'Policy_Search', 'Random_Binary']
+    agent_type = agents[0]
+
+    success_distance=2
 
 
 @ex.capture
 def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime, action_low, action_high, agent_type,
             action_repeat, action_size, success_mem_len,
             gamma=0.9, tau=0.1, buffer_size=100000, batch_size=128, exploration_mu=0,
-            exploration_theta=0.15, exploration_sigma=0.2):
+            exploration_theta=0.15, exploration_sigma=0.2, success_distance=1):
 
-    task = Task(target_pos=target_pos, init_pose=init_pose,
+    task = TakeOff_Task(target_pos=target_pos, init_pose=init_pose,
                 init_angle_velocities=init_angle_velocities, init_velocities=init_velocities,
                 runtime=runtime)
 
     task.configure(action_repeat=action_repeat, action_low=action_low, action_high=action_high, action_size=action_size,
                    target_pos=target_pos, init_velocities=init_velocities, init_angle_velocities=init_angle_velocities,
-                   init_pose=init_pose)
+                   init_pose=init_pose, success_distance=success_distance)
 
     if agent_type == 'DDPG':
-        agent = DDPG_Agent_Playground(task)
+        agent = DDPG_Agent(task)
         agent.configure(gamma, tau, buffer_size, batch_size, exploration_mu, exploration_theta, exploration_sigma)
     if agent_type == 'Policy_Search':
         agent = PolicySearch_Agent(task)
