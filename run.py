@@ -2,7 +2,7 @@ import sys
 from agents.agent import DDPG_Agent
 import csv
 import numpy as np
-from task import Task
+from task_playground import Task
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 

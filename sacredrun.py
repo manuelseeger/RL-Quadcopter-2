@@ -10,7 +10,7 @@ from sacred.observers import MongoObserver
 from agents.agent_playground import DDPG_Agent_Playground
 from agents.policy_search import PolicySearch_Agent
 from agents.random_binary_agent import Random_Binary_Agent
-from task import Task
+from task_playground import Task
 from collections import deque
 
 ex = Experiment()
