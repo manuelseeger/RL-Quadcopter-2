@@ -9,6 +9,7 @@ from sacred.observers import MongoObserver
 
 from agents.agent import DDPG_Agent
 from agents.policy_search import PolicySearch_Agent
+from agents.random_binary_agent import Random_Binary_Agent
 from task import Task
 from collections import deque
 
@@ -25,11 +26,11 @@ def config():
 
     # Replay memory
     buffer_size = 100000
-    batch_size = 128
+    batch_size = 256
 
     # Algorithm parameters
     gamma = 0.9   # discount factor
-    tau = 0.4  # for soft update of target parameters
+    tau = 0.01  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
@@ -54,12 +55,13 @@ def config():
     write_train_log = False
 
     # which agent to run
-    agent_type = 'DDPG'
+    #agent_type = 'DDPG'
+    agent_type = 'Random_Binary'
 
 
 @ex.capture
 def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime, action_low, action_high, agent_type,
-            action_repeat, action_size,
+            action_repeat, action_size, success_mem_len,
             gamma=0.9, tau=0.1, buffer_size=100000, batch_size=128, exploration_mu=0,
             exploration_theta=0.15, exploration_sigma=0.2):
 
@@ -76,6 +78,9 @@ def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime,
         agent.configure(gamma, tau, buffer_size, batch_size, exploration_mu, exploration_theta, exploration_sigma)
     if agent_type == 'Policy_Search':
         agent = PolicySearch_Agent(task)
+    if agent_type == 'Random_Binary':
+        agent = Random_Binary_Agent(task)
+        agent.configure(success_mem_len)
 
 
     return task, agent

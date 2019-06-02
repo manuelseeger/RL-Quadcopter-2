@@ -44,7 +44,7 @@ class Task():
         """Uses current pose of sim to return reward."""
         self.distance_to_target = np.linalg.norm(self.target_pos - self.sim.pose[:3])
 
-        reward = 1 - (self.distance_to_target / (self.init_distance * 2)) ** 3
+        reward = 1 - (self.distance_to_target / (self.init_distance * 2)) ** 2
 
         #reward = 1-np.tanh(self.target_pos[2] - self.sim.pose[2])
         #reward = np.tanh(1 - 0.003 * (abs(self.sim.pose[2] - self.target_pos[2]))).sum()
@@ -52,7 +52,7 @@ class Task():
         reward = reward / self.action_repeat
 
         if done and self.goal_reached():
-            reward += 50
+            reward += 100
         if done and self.out_of_bounds():
             reward -= 20
         if done and not self.goal_reached() and self.sim.runtime > self.sim.time:

@@ -1,13 +1,8 @@
 import numpy as np
 import copy
 import random
-from keras import layers, models, optimizers
-from keras import backend as K
-from keras import regularizers
 from collections import namedtuple, deque
-
-
-from keras import layers, models, optimizers, initializers
+from keras import layers, models, optimizers, initializers, regularizers
 from keras import backend as K
 
 class DDPG_Agent():
@@ -145,6 +140,7 @@ class Critic:
         states = layers.Input(shape=(self.state_size,), name='states')
         actions = layers.Input(shape=(self.action_size,), name='actions')
 
+        kernel_regularizer = regularizers.l2(0.01)
         kernel_initializer = initializers.VarianceScaling(scale=1.0, mode='fan_in', distribution='uniform',
                                                                 seed=None)
 
@@ -169,7 +165,8 @@ class Critic:
         final_layer_initializer = initializers.RandomUniform(minval=-0.003, maxval=0.003, seed=None)
 
         # Add final output layer to prduce action values (Q values)
-        Q_values = layers.Dense(units=1, name='q_values', kernel_initializer=final_layer_initializer)(net)
+        Q_values = layers.Dense(units=1, name='q_values', kernel_initializer=final_layer_initializer,
+                                kernel_regularizer=kernel_regularizer)(net)
 
         # Create Keras model
         self.model = models.Model(inputs=[states, actions], outputs=Q_values)
@@ -214,23 +211,25 @@ class Actor:
         # Define input layer (states)
         states = layers.Input(shape=(self.state_size,), name='states')
 
+        kernel_initializer = initializers.VarianceScaling(scale=1.0, mode='fan_in', distribution='uniform',
+                                                                seed=None)
         # Add hidden layers
         #net = layers.Dense(units=32, activation='relu')(states)
         #net = layers.Dense(units=64, activation='relu')(net)
         #net = layers.Dense(units=32, activation='relu')(net)
-        net = layers.Dense(units=320,kernel_regularizer=layers.regularizers.l2(1e-6))(states)
+        net = layers.Dense(units=320, kernel_initializer=kernel_initializer)(states)
         net = layers.BatchNormalization()(net)
         net = layers.Activation("relu")(net)
-        net = layers.Dense(units=640,kernel_regularizer=layers.regularizers.l2(1e-6))(net)
+        net = layers.Dense(units=640, kernel_initializer=kernel_initializer)(net)
         net = layers.BatchNormalization()(net)
         net = layers.Activation("relu")(net)
-        net = layers.Dense(units=320,kernel_regularizer=layers.regularizers.l2(1e-6))(net)
+        net = layers.Dense(units=320, kernel_initializer=kernel_initializer)(net)
         net = layers.BatchNormalization()(net)
         net = layers.Activation("relu")(net)
 
         # Try different layer sizes, activations, add batch normalization, regularizers, etc.
 
-        # Add final output layer with sigmoid activation
+        # Add final output layer with sigmoid or tanh activation
         raw_actions = layers.Dense(units=self.action_size, activation='tanh',
             name='raw_actions', kernel_initializer=layers.initializers.RandomUniform(minval=-0.003, maxval=0.003))(net)
 
