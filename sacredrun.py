@@ -7,7 +7,7 @@ import numpy as np
 from sacred import Experiment
 from sacred.observers import MongoObserver
 
-from agents.agent import DDPG_Agent
+from agents.agent_playground import DDPG_Agent_Playground
 from agents.policy_search import PolicySearch_Agent
 from agents.random_binary_agent import Random_Binary_Agent
 from task import Task
@@ -74,7 +74,7 @@ def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime,
                    init_pose=init_pose)
 
     if agent_type == 'DDPG':
-        agent = DDPG_Agent(task)
+        agent = DDPG_Agent_Playground(task)
         agent.configure(gamma, tau, buffer_size, batch_size, exploration_mu, exploration_theta, exploration_sigma)
     if agent_type == 'Policy_Search':
         agent = PolicySearch_Agent(task)
