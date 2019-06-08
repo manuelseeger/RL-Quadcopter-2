@@ -99,8 +99,11 @@ def train(_run, task, agent, num_episodes, n_mean, write_train_log, success_mem_
     for i_episode in range(1, num_episodes + 1):
         state = agent.reset_episode()  # start a new episode
         total_reward = 0.
+
+        p = 1 - (i_episode / (num_episodes * 0.5)) ** 0.5  # exploration / exploitation trade off
+        p = max(p, 0)
         while True:
-            action = agent.act(state)
+            action = agent.act(state, p)
             next_state, reward, done = task.step(action)
             agent.step(action, reward, next_state, done)
             state = next_state
