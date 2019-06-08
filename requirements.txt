@@ -4,3 +4,4 @@ pandas==0.19.2
 keras
 sacred
 pymongo
+gym

@@ -26,11 +26,11 @@ def config():
 
     # Replay memory
     buffer_size = 100000
-    batch_size = 64
+    batch_size = 128
 
     # Algorithm parameters
-    gamma = 0.9   # discount factor
-    tau = 0.001  # for soft update of target parameters
+    gamma = 0.99   # discount factor
+    tau = 0.01  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
@@ -39,18 +39,18 @@ def config():
     minimum_successes = 9
 
     # Task parameters
-    init_velocities = np.array([0., 0., 0.])         # initial velocities
+    init_velocities = np.array([0.1, 0.1, 0.1])         # initial velocities
     init_angle_velocities = np.array([0., 0., 0.])   # initial angle velocities
     file_output = 'data.txt'                         # file name for saved results
     init_pose = np.array([0., 0., 10., 0., 0., 0.])  # initial pose
     action_low = 10
     action_high = 900
     action_size = 4
-    action_repeat = 3
-    target_pos = np.array([0., 0., 30.])
+    action_repeat = 1
+    target_pos = np.array([0., 0., 50.])
 
     # experiment logging parameters
-    window = 10
+    n_mean = 10
     test_log_file_name = 'test_log.txt'
     write_train_log = False
 
@@ -88,7 +88,7 @@ def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime,
     return task, agent
 
 @ex.capture
-def train(_run, task, agent, num_episodes, window, write_train_log, success_mem_len, minimum_successes):
+def train(_run, task, agent, num_episodes, n_mean, write_train_log, success_mem_len, minimum_successes):
 
     rewards = np.array([])
     successes = deque([], maxlen=success_mem_len)
@@ -107,7 +107,7 @@ def train(_run, task, agent, num_episodes, window, write_train_log, success_mem_
             total_reward += reward
             if done:
                 print("\rEpisode = {:4d}, Reward = {:8.4f}, {:7} ({:.2f}), Rotors: {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format(
-                        i_episode, total_reward, ('Success' if agent.task.success else 'Fail'),
+                        i_episode, total_reward, ('Success' if agent.task.success else 'Fail ({})'.format(agent.task.outcome)),
                         agent.task.distance_to_target, action[0], action[1], action[2], action[3], end=""))
                 assert math.isnan(reward) is not True
 
@@ -116,11 +116,11 @@ def train(_run, task, agent, num_episodes, window, write_train_log, success_mem_
                     f.flush()
 
                 rewards = np.append(rewards, total_reward)
-                n = window if window < len(rewards) else len(rewards)
+                n = n_mean if n_mean < len(rewards) else len(rewards)
                 moving_average = np.sum(rewards[-n:])/n
                 _run.log_scalar('Reward', total_reward, i_episode)
                 _run.log_scalar('Distance', agent.task.distance_to_target)
-                _run.log_scalar('Past {:d} episode mean reward'.format(window), moving_average, i_episode)
+                _run.log_scalar('Past {:d} episode mean reward'.format(n_mean), moving_average, i_episode)
                 total_reward = 0
 
                 successes.append(agent.task.success)
