@@ -5,3 +5,4 @@ keras
 sacred
 pymongo
 gym
+IPython

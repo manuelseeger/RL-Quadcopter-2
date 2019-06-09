@@ -1,5 +1,4 @@
 import numpy as np
-from task_playground import Task
 
 class PolicySearch_Agent():
     def __init__(self, task):

@@ -102,17 +102,39 @@ def train(_run, task, agent, num_episodes, n_mean, write_train_log, success_mem_
 
         p = 1 - (i_episode / (num_episodes * 0.5)) ** 0.5  # exploration / exploitation trade off
         p = max(p, 0)
+
+        actions = []
+
         while True:
             action = agent.act(state, p)
             next_state, reward, done = task.step(action)
             agent.step(action, reward, next_state, done)
             state = next_state
             total_reward += reward
+
+            actions.append(action)
+
             if done:
-                print("\rEpisode = {:4d}, Reward = {:8.4f}, {:7} ({:.2f}), Rotors: {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format(
+
+                actions = np.array(actions).reshape(-1, 4)
+
+                means = actions.mean(axis=0)
+                stds = actions.std(axis=0)
+                mins = actions.min(axis=0)
+                maxs = actions.max(axis=0)
+
+                print("\rEpisode = {:4d}, Reward = {:8.4f}, {:7} ({:.2f}), Rotors mean: {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format(
                         i_episode, total_reward, ('Success' if agent.task.success else 'Fail ({})'.format(agent.task.outcome)),
-                        agent.task.distance_to_target, action[0], action[1], action[2], action[3], end=""))
-                assert math.isnan(reward) is not True
+                        agent.task.distance_to_target, means[0], means[1], means[2], means[3]))
+                print("\r{:>60}std:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
+                    stds[0], stds[1], stds[2], stds[3], end=""
+                ))
+                print("\r{:>60}min:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
+                    mins[0], mins[1], mins[2], mins[3], end=""
+                ))
+                print("\r{:>60}max:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
+                    maxs[0], maxs[1], maxs[2], maxs[3], end=""
+                ))
 
                 if write_train_log:
                     f.writelines(str(total_reward) + '\n')
