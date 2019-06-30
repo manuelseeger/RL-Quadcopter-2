@@ -16,7 +16,7 @@ cd RL-Quadcopter-2
 2. Create and activate a new environment.
 
 ```
-conda create -n quadcop python=3.6 matplotlib numpy pandas
+conda create -n quadcop python=3.6 matplotlib numpy pandas keras sacred pymongo gym IPython
 source activate quadcop
 ```
 

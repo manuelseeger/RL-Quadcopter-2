@@ -1,17 +1,17 @@
 import csv
-import math
-import os
 import sys
-
+import pandas as pd
 import numpy as np
 from sacred import Experiment
 from sacred.observers import MongoObserver
 
 from agents.agent import DDPG_Agent
+from agents.agent_simple import DDPG as DDPG_Agent_Simple
 from agents.policy_search import PolicySearch_Agent
 from agents.random_binary_agent import Random_Binary_Agent
 from collections import deque
 from tasks import TakeOff_Task
+import visuals as vs
 
 ex = Experiment()
 ex.observers.append(MongoObserver.create(db_name='sacred'))
@@ -21,16 +21,16 @@ def config():
 
     # Noise process
     exploration_mu = 0.
-    exploration_theta = 0.15
+    exploration_theta = 0.7
     exploration_sigma = 0.2
 
     # Replay memory
     buffer_size = 100000
-    batch_size = 128
+    batch_size = 256
 
     # Algorithm parameters
     gamma = 0.99   # discount factor
-    tau = 0.01  # for soft update of target parameters
+    tau = 0.1  # for soft update of target parameters
 
     # Experiment
     num_episodes = 1000
@@ -39,14 +39,14 @@ def config():
     minimum_successes = 9
 
     # Task parameters
-    init_velocities = np.array([0.1, 0.1, 0.1])         # initial velocities
+    init_velocities = np.array([.1, .1, .1])         # initial velocities
     init_angle_velocities = np.array([0., 0., 0.])   # initial angle velocities
     file_output = 'data.txt'                         # file name for saved results
     init_pose = np.array([0., 0., 10., 0., 0., 0.])  # initial pose
     action_low = 10
     action_high = 900
     action_size = 4
-    action_repeat = 1
+    action_repeat = 3
     target_pos = np.array([0., 0., 50.])
 
     # experiment logging parameters
@@ -55,8 +55,8 @@ def config():
     write_train_log = False
 
     # which agent to run
-    agents = ['DDPG', 'Policy_Search', 'Random_Binary']
-    agent_type = agents[0]
+    agents = ['DDPG', 'Policy_Search', 'Random_Binary', 'Simple']
+    agent_type = agents[3]
 
     success_distance=2
 
@@ -83,7 +83,9 @@ def init(target_pos, init_pose, init_angle_velocities, init_velocities, runtime,
     if agent_type == 'Random_Binary':
         agent = Random_Binary_Agent(task)
         agent.configure(success_mem_len)
-
+    if agent_type == 'Simple':
+        agent = DDPG_Agent_Simple(task)
+        agent.configure(gamma, tau, buffer_size, batch_size, exploration_mu, exploration_theta, exploration_sigma)
 
     return task, agent
 
@@ -96,65 +98,104 @@ def train(_run, task, agent, num_episodes, n_mean, write_train_log, success_mem_
     if write_train_log:
         f = open('rewards_log.txt', 'w')
 
-    for i_episode in range(1, num_episodes + 1):
-        state = agent.reset_episode()  # start a new episode
-        total_reward = 0.
+    labels = ['Episode', 'Reward', 'time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
+              'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
+              'psi_velocity', 'rotor1', 'rotor2', 'rotor3', 'rotor4', 'p', 'success']
 
-        p = 1 - (i_episode / (num_episodes * 0.5)) ** 0.5  # exploration / exploitation trade off
-        p = max(p, 0)
+    results = []
 
-        actions = []
+    try:
 
-        while True:
-            action = agent.act(state, p)
-            next_state, reward, done = task.step(action)
-            agent.step(action, reward, next_state, done)
-            state = next_state
-            total_reward += reward
+        for i_episode in range(1, num_episodes + 1):
+            state = agent.reset_episode()  # start a new episode
+            total_reward = 0.
 
-            actions.append(action)
+            p = 1 - (i_episode / (num_episodes * 0.7)) ** 0.5  # exploration / exploitation trade off
+            p = max(p, 0)
 
-            if done:
+            actions = []
 
-                actions = np.array(actions).reshape(-1, 4)
+            while True:
+                action = agent.act(state, p)
+                next_state, reward, done = task.step(action)
+                agent.step(action, reward, next_state, done)
+                state = next_state
+                total_reward += reward
 
-                means = actions.mean(axis=0)
-                stds = actions.std(axis=0)
-                mins = actions.min(axis=0)
-                maxs = actions.max(axis=0)
+                actions.append(action)
 
-                print("\rEpisode = {:4d}, Reward = {:8.4f}, {:7} ({:.2f}), Rotors mean: {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format(
-                        i_episode, total_reward, ('Success' if agent.task.success else 'Fail ({})'.format(agent.task.outcome)),
-                        agent.task.distance_to_target, means[0], means[1], means[2], means[3]))
-                print("\r{:>60}std:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
-                    stds[0], stds[1], stds[2], stds[3], end=""
-                ))
-                print("\r{:>60}min:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
-                    mins[0], mins[1], mins[2], mins[3], end=""
-                ))
-                print("\r{:>60}max:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
-                    maxs[0], maxs[1], maxs[2], maxs[3], end=""
-                ))
+                result = {a : 0. for a in labels}
 
-                if write_train_log:
-                    f.writelines(str(total_reward) + '\n')
-                    f.flush()
+                result['Episode'] = i_episode
+                result['Reward'] = reward
+                result['time'] = task.sim.time
+                result['x'] = task.sim.pose[0]
+                result['y'] = task.sim.pose[1]
+                result['z'] = task.sim.pose[2]
+                result['phi'] = task.sim.pose[3]
+                result['theta'] = task.sim.pose[4]
+                result['psi'] = task.sim.pose[5]
+                result['x_velocity'] = task.sim.v[0]
+                result['y_velocity'] = task.sim.v[1]
+                result['z_velocity'] = task.sim.v[2]
+                result['phi_velocity'] = task.sim.angular_v[0]
+                result['theta_velocity'] = task.sim.angular_v[1]
+                result['psi_velocity'] = task.sim.angular_v[2]
+                result['rotor1'] = action[0]
+                result['rotor2'] = action[1]
+                result['rotor3'] = action[2]
+                result['rotor4'] = action[3]
+                result['p'] = p
+                result['success'] = task.success
+                results.append(result)
 
-                rewards = np.append(rewards, total_reward)
-                n = n_mean if n_mean < len(rewards) else len(rewards)
-                moving_average = np.sum(rewards[-n:])/n
-                _run.log_scalar('Reward', total_reward, i_episode)
-                _run.log_scalar('Distance', agent.task.distance_to_target)
-                _run.log_scalar('Past {:d} episode mean reward'.format(n_mean), moving_average, i_episode)
-                total_reward = 0
+                if done:
 
-                successes.append(agent.task.success)
+                    actions = np.array(actions).reshape(-1, 4)
 
+                    means = actions.mean(axis=0)
+                    stds = actions.std(axis=0)
+                    mins = actions.min(axis=0)
+                    maxs = actions.max(axis=0)
+
+                    print("\rEpisode = {:4d}, Reward = {:8.4f}, {:7} ({:.2f}), Rotors mean: {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format(
+                            i_episode, total_reward, ('Success' if agent.task.success else 'Fail ({})'.format(agent.task.outcome)),
+                            agent.task.distance_to_target, means[0], means[1], means[2], means[3]))
+                    print("\r{:>60}std:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
+                        stds[0], stds[1], stds[2], stds[3], end=""
+                    ))
+                    print("\r{:>60}min:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
+                        mins[0], mins[1], mins[2], mins[3], end=""
+                    ))
+                    print("\r{:>60}max:  {:03.0f} {:03.0f} {:03.0f} {:03.0f}".format('',
+                        maxs[0], maxs[1], maxs[2], maxs[3], end=""
+                    ))
+
+                    if write_train_log:
+                        f.writelines(str(total_reward) + '\n')
+                        f.flush()
+
+                    rewards = np.append(rewards, total_reward)
+                    n = n_mean if n_mean < len(rewards) else len(rewards)
+                    moving_average = np.sum(rewards[-n:])/n
+                    _run.log_scalar('Reward', total_reward, i_episode)
+                    _run.log_scalar('Distance', agent.task.distance_to_target)
+                    _run.log_scalar('Past {:d} episode mean reward'.format(n_mean), moving_average, i_episode)
+                    total_reward = 0
+
+                    successes.append(agent.task.success)
+
+                    break
+
+            if sum(successes) >= minimum_successes:
                 break
+            sys.stdout.flush()
+    except KeyboardInterrupt:
 
-        if sum(successes) >= minimum_successes:
-            break
-        sys.stdout.flush()
+        results = pd.DataFrame(results)
+        return results.loc[results['Episode'] != results['Episode'].max()]
+
+    return pd.DataFrame(results)
 
 @ex.capture
 def test(_run, agent, task, test_log_file_name, init_pose):
@@ -200,7 +241,9 @@ def test(_run, agent, task, test_log_file_name, init_pose):
 def main(_run):
     task, agent = init()
 
-    train(_run, task, agent)
+    results = train(_run, task, agent)
+
+    results.to_csv('results.csv')
 
     #os.mkdir(os.path.join('runs', str(_run._id)))
     #agent.actor_target.model.save(os.path.join('runs', str(_run._id), 'actor.h5'))
